@@ -26,6 +26,12 @@ async def add_regular(
     return item
 
 
+async def update_regular_amount(session: AsyncSession, expense_id: int, amount: float) -> None:
+    item = await session.get(ExpenseRegular, expense_id)
+    if item:
+        item.amount = amount
+
+
 async def delete_regular(session: AsyncSession, expense_id: int) -> None:
     item = await session.get(ExpenseRegular, expense_id)
     if item:
