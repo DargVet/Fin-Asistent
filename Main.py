@@ -1,4 +1,4 @@
-from Client import ask_finassist
+from ai.client import ask_finassist
 
 if __name__ == "__main__":
     example_context = {
