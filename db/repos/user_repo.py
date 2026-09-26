@@ -18,9 +18,3 @@ async def create(session: AsyncSession, telegram_id: int) -> User:
     session.add(user)
     await session.flush()
     return user
-
-
-async def set_plan(session: AsyncSession, user_id: int, plan: str) -> None:
-    user = await session.get(User, user_id)
-    if user:
-        user.plan = plan

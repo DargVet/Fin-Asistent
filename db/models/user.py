@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy import BigInteger, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -22,8 +22,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    plan: Mapped[str] = mapped_column(String(10), default="free")  # free | premium
-
     balance: Mapped["Balance"] = relationship(back_populates="user", uselist=False)
     income_regular: Mapped[list["IncomeRegular"]] = relationship(back_populates="user")
     income_irregular: Mapped[list["IncomeIrregular"]] = relationship(back_populates="user")

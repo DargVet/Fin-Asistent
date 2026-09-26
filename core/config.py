@@ -7,8 +7,6 @@ GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
 MODEL_NAME: str = "openai/gpt-oss-120b"
 
 BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
-FREE_PLAN_DAILY_LIMIT: int = 5
-
 # DATABASE_URL собирается из отдельных переменных
 _db_user = os.environ.get("DB_USER", "postgres")
 _db_password = os.environ.get("DB_PASSWORD", "postgres")
