@@ -4,7 +4,7 @@ from groq import Groq
 
 from core.config import GROQ_API_KEY, MODEL_NAME
 from .guardrails import check_guardrails
-from .finance import check_purchase_affordability
+from .finance import check_purchase_affordability, calculate_goal_recommendation
 from .tools import TOOLS
 from .prompts import build_system_prompt
 
@@ -46,7 +46,7 @@ def ask_finassist(user_message: str, context: dict, history: list[dict] | None =
             tools=TOOLS,
             tool_choice="auto",
             temperature=0.3,
-            max_tokens=500,
+            max_tokens=1500,
             timeout=10,
         )
         message = response.choices[0].message
@@ -57,6 +57,20 @@ def ask_finassist(user_message: str, context: dict, history: list[dict] | None =
                 if tool_call.function.name == "check_purchase_affordability":
                     args = json.loads(tool_call.function.arguments)
                     result = check_purchase_affordability(args["amount"], context)
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(result, ensure_ascii=False),
+                        }
+                    )
+                elif tool_call.function.name == "calculate_goal_recommendation":
+                    args = json.loads(tool_call.function.arguments)
+                    result = calculate_goal_recommendation(
+                        args["goal_target"],
+                        args["goal_current"],
+                        context["balans_after_unreg"]
+                    )
                     messages.append(
                         {
                             "role": "tool",

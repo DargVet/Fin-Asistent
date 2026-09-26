@@ -95,27 +95,9 @@ async def process_income_update(message: Message, state: FSMContext, session: As
 @router.callback_query(F.data.startswith("inc_del_"))
 async def cb_income_delete(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     income_id = int(callback.data.split("_")[-1])
-    item = await session.get(__import__("db.models", fromlist=["IncomeRegular"]).IncomeRegular, income_id)
-    deleted_amount = float(item.amount) if item else 0.0
-    deleted_name = item.source if item else "доход"
-
     await income_repo.delete_regular(session, income_id)
-
-    # Обновляем баланс
-    user = await user_service.get_or_create(session, callback.from_user.id)
-    balance = await balance_repo.get(session, user.id)
-    if balance:
-        await balance_repo.upsert(session, user.id, float(balance.amount) - deleted_amount)
-
-    # Записываем в историю
-    await expense_repo.add_irregular(
-        session, user.id,
-        category=f"Удалён регулярный доход: {deleted_name}",
-        amount=deleted_amount,
-        is_mandatory=False,
-    )
-
     await session.commit()
+    user = await user_service.get_or_create(session, callback.from_user.id)
     items = await income_repo.get_regular(session, user.id)
     await callback.message.edit_text(
         "📌 ПОСТОЯННЫЕ ДОХОДЫ\n\nКатегория удалена ✓",
@@ -180,20 +162,6 @@ async def process_income_new_day(message: Message, state: FSMContext, session: A
     data = await state.get_data()
     user = await user_service.get_or_create(session, message.from_user.id)
     await income_repo.add_regular(session, user.id, data["new_name"], data["new_amount"], day)
-
-    # Обновляем баланс
-    balance = await balance_repo.get(session, user.id)
-    if balance:
-        await balance_repo.upsert(session, user.id, float(balance.amount) + data["new_amount"])
-
-    # Записываем в историю
-    await expense_repo.add_irregular(
-        session, user.id,
-        category=f"Добавлен регулярный доход: {data['new_name']}",
-        amount=data["new_amount"],
-        is_mandatory=False,
-    )
-
     await session.commit()
     await state.clear()
     items = await income_repo.get_regular(session, user.id)

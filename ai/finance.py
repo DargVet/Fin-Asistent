@@ -140,3 +140,56 @@ def check_purchase_affordability(amount: float, context: dict) -> dict:
         "balans_after_unreg_before_purchase": balans_after_unreg,
         "balans_after_purchase": round(after_purchase, 2),
     }
+
+
+def calculate_goal_recommendation(goal_target: float, goal_current: float, balans_after_unreg: float) -> dict:
+    """
+    Рассчитывает рациональные рекомендации для накопления на цель.
+
+    Логика:
+    - Если свободных денег <= 5000 ₽ — подушка 100% от свободного, откладывать нельзя
+    - Если 5000-20000 ₽ — подушка 30-50%, остальное на цель
+    - Если >20000 ₽ — подушка 15-20%, остальное на цель
+
+    Возвращает план на месяц и прогноз до цели.
+    """
+    remaining_goal = max(0, goal_target - goal_current)
+
+    # Определяем подушку безопасности на основе свободного баланса
+    if balans_after_unreg <= 5000:
+        recommended_safety = round(balans_after_unreg, 2)
+        available_for_goal = 0
+    elif balans_after_unreg <= 20000:
+        # 30-50% на подушку, остальное на цель
+        recommended_safety = round(balans_after_unreg * 0.4, 2)
+        available_for_goal = round(balans_after_unreg - recommended_safety, 2)
+    else:
+        # 15-20% на подушку, остальное на цель
+        recommended_safety = round(balans_after_unreg * 0.15, 2)
+        available_for_goal = round(balans_after_unreg - recommended_safety, 2)
+
+    # Считаем сроки
+    if remaining_goal <= 0:
+        months_to_goal = 0
+        monthly_deposit = 0
+    elif available_for_goal >= remaining_goal:
+        # Можно собрать всё за раз
+        months_to_goal = 1
+        monthly_deposit = round(remaining_goal, 2)
+    else:
+        # Рациональный месячный взнос (не более 70% доступного, но достаточный)
+        monthly_deposit = round(available_for_goal * 0.6, 2)  # 60% от доступного
+        if monthly_deposit <= 0:
+            monthly_deposit = 0
+            months_to_goal = 999  # Недостаточно даже откладывать
+        else:
+            months_to_goal = int((remaining_goal / monthly_deposit) + 0.9)  # Округляем вверх
+
+    return {
+        "remaining_goal": round(remaining_goal, 2),
+        "recommended_safety_fund": recommended_safety,
+        "available_for_goal_monthly": available_for_goal,
+        "recommended_monthly_deposit": monthly_deposit,
+        "months_to_goal": months_to_goal if months_to_goal <= 999 else None,
+        "can_afford_all_at_once": remaining_goal <= balans_after_unreg,
+    }

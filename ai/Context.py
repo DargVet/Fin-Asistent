@@ -32,6 +32,7 @@ def build_context(
     expenses_reg: list,
     expenses_unreg_raw: list,
     promo_rows: Optional[list] = None,
+    goals: Optional[list] = None,
     today: Optional[date] = None,
 ) -> dict:
     """
@@ -47,9 +48,12 @@ def build_context(
                           spent_at) за любой период — тоже фильтруется по месяцу
     promo_rows         — строки таблицы promo_codes (organization, purpose, code);
                           можно не передавать, если промокодов пока нет
+    goals              — строки goals (name, target_amount, current_amount);
+                          можно не передавать, если целей пока нет
     """
     today = today or date.today()
     promo_rows = promo_rows or []
+    goals = goals or []
 
     income_unreg = filter_current_month(income_unreg_raw, "received_at", today)
     expenses_unreg = filter_current_month(expenses_unreg_raw, "spent_at", today)
@@ -70,6 +74,7 @@ def build_context(
         "expenses_reg": expenses_reg,
         "expenses_unreg": expenses_unreg,
         "promo_codes": build_promo_codes_dict(promo_rows),
+        "goals": goals,
         **balances,
         **next_income,
         **next_expense,

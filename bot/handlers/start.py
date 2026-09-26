@@ -22,3 +22,4 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
         "Выбери раздел или просто напиши свой вопрос:",
         reply_markup=main_menu_kb(),
     )
+    await message.answer("↓ Кнопка для быстрого возврата в меню:", reply_markup=main_menu_reply_kb())

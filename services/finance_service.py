@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.Context import build_context as _build_context
-from db.repos import balance_repo, income_repo, expense_repo, promo_repo
+from db.repos import balance_repo, income_repo, expense_repo, promo_repo, goal_repo
 
 
 async def build_context(user_id: int, session: AsyncSession) -> dict:
@@ -50,6 +50,16 @@ async def build_context(user_id: int, session: AsyncSession) -> dict:
         for p in promo_rows_orm
     ]
 
+    goals_orm = await goal_repo.get_all(session, user_id)
+    goals = [
+        {
+            "name": g.name,
+            "target_amount": float(g.target_amount),
+            "current_amount": float(g.current_amount),
+        }
+        for g in goals_orm
+    ]
+
     return _build_context(
         balans=current_balance,
         income_reg=income_reg,
@@ -57,4 +67,5 @@ async def build_context(user_id: int, session: AsyncSession) -> dict:
         expenses_reg=expenses_reg,
         expenses_unreg_raw=expenses_unreg_raw,
         promo_rows=promo_rows,
+        goals=goals,
     )
