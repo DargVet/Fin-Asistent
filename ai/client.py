@@ -1,11 +1,10 @@
 import json
-from datetime import date
 
 from groq import Groq
 
-from core.config import GROQ_API_KEY, MODEL_NAME
+from .config import GROQ_API_KEY, MODEL_NAME
 from .guardrails import check_guardrails
-from .finance import get_next_income_info, check_purchase_affordability
+from .finance import check_purchase_affordability
 from .tools import TOOLS
 from .prompts import build_system_prompt
 
@@ -14,23 +13,25 @@ client = Groq(api_key=GROQ_API_KEY)
 
 def ask_finassist(user_message: str, context: dict) -> str:
     """
-    context — dict с ключами:
-        balans, income_reg (каждый item может содержать pay_day),
-        income_unreg, expenses_reg, expenses_unreg,
-        income_date, balans_after_reg, balans_after_unreg
-    today_date / next_income_date / next_income_source / days_until_income
-    досчитываются здесь автоматически — их передавать не нужно.
+    context должен быть УЖЕ полностью собран через context.build_context(...)
+    до вызова этой функции (обычно — в обработчике сообщения бота, сразу после
+    того как достал свежие данные пользователя из БД). Здесь context больше
+    ничего не досчитывает и не дополняет — только передаёт модели как есть.
+
+    Ожидаемые ключи (их формирует build_context):
+        today_date, balans,
+        income_reg, income_unreg (уже отфильтрован по текущему месяцу),
+        expenses_reg, expenses_unreg (уже отфильтрован по текущему месяцу),
+        promo_codes,
+        reserved_for_month, reserved_for_month_items,
+        balans_after_reg, unreg_total, balans_after_unreg,
+        next_income_date, next_income_source, next_income_amount, days_until_income,
+        next_expense_date, next_expense_name, next_expense_amount, days_until_expense,
+        income_before_next_expense
     """
     refusal = check_guardrails(user_message)
     if refusal:
         return refusal
-
-    today = date.today()
-    context = {
-        **context,
-        "today_date": today.isoformat(),
-        **get_next_income_info(context.get("income_reg", []), today),
-    }
 
     messages = [
         {"role": "system", "content": build_system_prompt(context)},
