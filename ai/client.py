@@ -3,11 +3,11 @@ from datetime import date
 
 from groq import Groq
 
-from Config import GROQ_API_KEY, MODEL_NAME
-from guardrails import check_guardrails
-from Finance import get_next_income_info, check_purchase_affordability
-from Tools import TOOLS
-from prompts import build_system_prompt
+from core.config import GROQ_API_KEY, MODEL_NAME
+from .guardrails import check_guardrails
+from .finance import get_next_income_info, check_purchase_affordability
+from .tools import TOOLS
+from .prompts import build_system_prompt
 
 client = Groq(api_key=GROQ_API_KEY)
 
