@@ -10,15 +10,18 @@ from .finance import (
 
 
 def build_promo_codes_dict(promo_rows: list) -> dict:
-    """Собирает промокоды из плоских строк таблицы promo_codes в вид
-    {organization: {purpose: code}}.
-    Ожидает список dict с ключами: organization, purpose, code."""
+    """Собирает промокоды в вид:
+    {организация: {промокод: {description, advertiser, erid}}}
+    Ожидает список dict с ключами: organization, purpose, code, advertiser, erid."""
     promo_codes: dict = {}
     for row in promo_rows:
         org = row["organization"]
-        purpose = row["purpose"]
         code = row["code"]
-        promo_codes.setdefault(org, {})[purpose] = code
+        promo_codes.setdefault(org, {})[code] = {
+            "description": row["purpose"],
+            "advertiser": row.get("advertiser") or "",
+            "erid": row.get("erid") or "",
+        }
     return promo_codes
 
 

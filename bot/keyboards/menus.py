@@ -1,8 +1,14 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton as IKB
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton as IKB, ReplyKeyboardMarkup, KeyboardButton as KB
 
 
 def _back(cb: str) -> list[IKB]:
     return [IKB(text="⬅️ Назад", callback_data=cb)]
+
+
+def main_menu_reply_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=[
+        [KB(text="🏠 Главное меню")]
+    ], resize_keyboard=True)
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:

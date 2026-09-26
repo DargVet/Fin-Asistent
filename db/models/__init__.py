@@ -5,6 +5,7 @@ from .income import IncomeRegular, IncomeIrregular
 from .expense import ExpenseRegular, ExpenseIrregular
 from .goal import Goal
 from .ai_log import AIQueryLog
+from .promo import PromoCode
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "ExpenseIrregular",
     "Goal",
     "AIQueryLog",
+    "PromoCode",
 ]
