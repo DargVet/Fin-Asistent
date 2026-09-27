@@ -8,7 +8,7 @@ from bot.keyboards.menus import (
     expense_menu_kb, expense_regular_kb, expense_item_kb,
     expense_irregular_kb, prompt_kb,
 )
-from db.repos import expense_repo
+from db.repos import expense_repo, balance_repo
 from services import user_service
 
 router = Router()
@@ -206,6 +206,9 @@ async def process_expense_irregular(message: Message, state: FSMContext, session
     data = await state.get_data()
     user = await user_service.get_or_create(session, message.from_user.id)
     await expense_repo.add_irregular(session, user.id, category, amount)
+    balance = await balance_repo.get(session, user.id)
+    if balance:
+        await balance_repo.upsert(session, user.id, float(balance.amount) - amount)
     await session.commit()
     await state.clear()
     await message.bot.edit_message_text(

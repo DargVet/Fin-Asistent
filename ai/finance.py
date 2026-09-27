@@ -69,35 +69,61 @@ def get_next_income_info(income_reg: list, today: date) -> dict:
 
 
 def get_next_expense_info(expenses_reg: list, today: date) -> dict:
-    """Ищет ближайшую дату регулярного расхода (по charge_day)."""
+    """То же самое, но для ближайшего ОБЯЗАТЕЛЬНОГО регулярного платежа
+    (аренда, связь и т.п.). Нужно, чтобы понимать очерёдность: доход или
+    списание наступит раньше."""
     candidates = []
     for item in expenses_reg:
         charge_day = item.get("charge_day")
         if charge_day is None:
             continue
-
-        last_day_this_month = calendar.monthrange(today.year, today.month)[1]
-        candidate = today.replace(day=min(charge_day, last_day_this_month))
-
-        if candidate <= today:
-            next_month = today.month % 12 + 1
-            next_year = today.year + (1 if today.month == 12 else 0)
-            last_day_next_month = calendar.monthrange(next_year, next_month)[1]
-            candidate = date(next_year, next_month, min(charge_day, last_day_next_month))
-
-        candidates.append((candidate, item.get("name", "расход"), item.get("amount", 0)))
+        candidates.append(
+            (_next_occurrence(charge_day, today), item.get("name", "платёж"), item.get("amount"))
+        )
 
     if not candidates:
-        return {"next_expense_date": None, "next_expense_name": None,
-                "next_expense_amount": None, "days_until_expense": None}
+        return {
+            "next_expense_date": None,
+            "next_expense_name": None,
+            "next_expense_amount": None,
+            "days_until_expense": None,
+        }
 
-    candidates.sort(key=lambda x: x[0])
+    candidates.sort(key=lambda triple: triple[0])
     next_date, name, amount = candidates[0]
     return {
         "next_expense_date": next_date.isoformat(),
         "next_expense_name": name,
         "next_expense_amount": amount,
         "days_until_expense": (next_date - today).days,
+    }
+
+
+def compute_month_balances(current_balance: float, expenses_reg: list, expenses_unreg_month: list, today: date) -> dict:
+    """
+    reserved_for_month  — сколько ещё нужно оставить в этом месяце, чтобы не
+                          уйти в минус: сумма обязательных регулярных платежей,
+                          которые ещё НЕ списались (charge_day > today.day).
+    balans_after_reg    — баланс после вычета этого резерва.
+    balans_after_unreg  — тот же баланс минус уже потраченные в этом месяце
+                          нерегулярные расходы (кафе, покупки и т.п.).
+    """
+    upcoming_reg_items = [e for e in expenses_reg if e.get("charge_day", 0) > today.day]
+    reserved_for_month = round(sum(e["amount"] for e in upcoming_reg_items), 2)
+    balans_after_reg = round(current_balance - reserved_for_month, 2)
+
+    unreg_total = round(sum(e["amount"] for e in expenses_unreg_month), 2)
+    balans_after_unreg = round(balans_after_reg - unreg_total, 2)
+
+    return {
+        "reserved_for_month": reserved_for_month,
+        "reserved_for_month_items": [
+            {"name": e.get("name"), "amount": e["amount"], "charge_day": e.get("charge_day")}
+            for e in upcoming_reg_items
+        ],
+        "balans_after_reg": balans_after_reg,
+        "unreg_total": unreg_total,
+        "balans_after_unreg": balans_after_unreg,
     }
 
 
@@ -113,4 +139,57 @@ def check_purchase_affordability(amount: float, context: dict) -> dict:
         "can_afford": after_purchase >= 0,
         "balans_after_unreg_before_purchase": balans_after_unreg,
         "balans_after_purchase": round(after_purchase, 2),
+    }
+
+
+def calculate_goal_recommendation(goal_target: float, goal_current: float, balans_after_unreg: float) -> dict:
+    """
+    Рассчитывает рациональные рекомендации для накопления на цель.
+
+    Логика:
+    - Если свободных денег <= 5000 ₽ — подушка 100% от свободного, откладывать нельзя
+    - Если 5000-20000 ₽ — подушка 30-50%, остальное на цель
+    - Если >20000 ₽ — подушка 15-20%, остальное на цель
+
+    Возвращает план на месяц и прогноз до цели.
+    """
+    remaining_goal = max(0, goal_target - goal_current)
+
+    # Определяем подушку безопасности на основе свободного баланса
+    if balans_after_unreg <= 5000:
+        recommended_safety = round(balans_after_unreg, 2)
+        available_for_goal = 0
+    elif balans_after_unreg <= 20000:
+        # 30-50% на подушку, остальное на цель
+        recommended_safety = round(balans_after_unreg * 0.4, 2)
+        available_for_goal = round(balans_after_unreg - recommended_safety, 2)
+    else:
+        # 15-20% на подушку, остальное на цель
+        recommended_safety = round(balans_after_unreg * 0.15, 2)
+        available_for_goal = round(balans_after_unreg - recommended_safety, 2)
+
+    # Считаем сроки
+    if remaining_goal <= 0:
+        months_to_goal = 0
+        monthly_deposit = 0
+    elif available_for_goal >= remaining_goal:
+        # Можно собрать всё за раз
+        months_to_goal = 1
+        monthly_deposit = round(remaining_goal, 2)
+    else:
+        # Рациональный месячный взнос (не более 70% доступного, но достаточный)
+        monthly_deposit = round(available_for_goal * 0.6, 2)  # 60% от доступного
+        if monthly_deposit <= 0:
+            monthly_deposit = 0
+            months_to_goal = 999  # Недостаточно даже откладывать
+        else:
+            months_to_goal = int((remaining_goal / monthly_deposit) + 0.9)  # Округляем вверх
+
+    return {
+        "remaining_goal": round(remaining_goal, 2),
+        "recommended_safety_fund": recommended_safety,
+        "available_for_goal_monthly": available_for_goal,
+        "recommended_monthly_deposit": monthly_deposit,
+        "months_to_goal": months_to_goal if months_to_goal <= 999 else None,
+        "can_afford_all_at_once": remaining_goal <= balans_after_unreg,
     }

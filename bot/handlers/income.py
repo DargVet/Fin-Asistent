@@ -8,7 +8,7 @@ from bot.keyboards.menus import (
     income_menu_kb, income_regular_kb, income_item_kb,
     income_irregular_kb, prompt_kb, back_only_kb,
 )
-from db.repos import income_repo
+from db.repos import income_repo, balance_repo, expense_repo
 from services import user_service
 
 router = Router()
@@ -208,6 +208,9 @@ async def process_income_irregular(message: Message, state: FSMContext, session:
     data = await state.get_data()
     user = await user_service.get_or_create(session, message.from_user.id)
     await income_repo.add_irregular(session, user.id, source, amount)
+    balance = await balance_repo.get(session, user.id)
+    if balance:
+        await balance_repo.upsert(session, user.id, float(balance.amount) + amount)
     await session.commit()
     await state.clear()
     await message.bot.edit_message_text(

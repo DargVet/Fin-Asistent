@@ -2,16 +2,16 @@ import json
 
 from groq import Groq
 
-from .config import GROQ_API_KEY, MODEL_NAME
+from core.config import GROQ_API_KEY, MODEL_NAME
 from .guardrails import check_guardrails
-from .finance import check_purchase_affordability
+from .finance import check_purchase_affordability, calculate_goal_recommendation
 from .tools import TOOLS
 from .prompts import build_system_prompt
 
 client = Groq(api_key=GROQ_API_KEY)
 
 
-def ask_finassist(user_message: str, context: dict) -> str:
+def ask_finassist(user_message: str, context: dict, history: list[dict] | None = None) -> str:
     """
     context должен быть УЖЕ полностью собран через context.build_context(...)
     до вызова этой функции (обычно — в обработчике сообщения бота, сразу после
@@ -35,6 +35,7 @@ def ask_finassist(user_message: str, context: dict) -> str:
 
     messages = [
         {"role": "system", "content": build_system_prompt(context)},
+        *(history or []),
         {"role": "user", "content": user_message},
     ]
 
@@ -45,7 +46,7 @@ def ask_finassist(user_message: str, context: dict) -> str:
             tools=TOOLS,
             tool_choice="auto",
             temperature=0.3,
-            max_tokens=500,
+            max_tokens=1500,
             timeout=10,
         )
         message = response.choices[0].message
@@ -63,6 +64,20 @@ def ask_finassist(user_message: str, context: dict) -> str:
                             "content": json.dumps(result, ensure_ascii=False),
                         }
                     )
+                elif tool_call.function.name == "calculate_goal_recommendation":
+                    args = json.loads(tool_call.function.arguments)
+                    result = calculate_goal_recommendation(
+                        args["goal_target"],
+                        args["goal_current"],
+                        context["balans_after_unreg"]
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(result, ensure_ascii=False),
+                        }
+                    )
 
             final_response = client.chat.completions.create(
                 model=MODEL_NAME,
@@ -73,7 +88,7 @@ def ask_finassist(user_message: str, context: dict) -> str:
             )
             return final_response.choices[0].message.content
 
-        return message.content
+        return message.content or ""
 
     except Exception as exc:  # noqa: BLE001 — хакатон, ловим широко для fallback
         print(f"[finassist.client] API error: {exc}")

@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from bot.keyboards.menus import main_menu_kb
+from bot.keyboards.menus import main_menu_kb, main_menu_reply_kb
 
 router = Router()
 
@@ -17,5 +17,11 @@ async def cb_main_menu(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("🏠 ГЛАВНОЕ МЕНЮ\n\nВыбери раздел:", reply_markup=main_menu_kb())
+
+
+@router.message(F.text == "🏠 Главное меню")
+async def msg_main_menu(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("🏠 ГЛАВНОЕ МЕНЮ\n\nВыбери раздел:", reply_markup=main_menu_kb())

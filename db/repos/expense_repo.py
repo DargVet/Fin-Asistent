@@ -38,14 +38,22 @@ async def delete_regular(session: AsyncSession, expense_id: int) -> None:
         await session.delete(item)
 
 
+async def get_all_irregular(session: AsyncSession, user_id: int) -> list[ExpenseIrregular]:
+    result = await session.execute(
+        select(ExpenseIrregular).where(ExpenseIrregular.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
 async def get_irregular(
     session: AsyncSession, user_id: int, from_date: date, to_date: date
 ) -> list[ExpenseIrregular]:
+    from sqlalchemy import func as sqlfunc
     result = await session.execute(
         select(ExpenseIrregular).where(
             ExpenseIrregular.user_id == user_id,
-            ExpenseIrregular.spent_at >= from_date,
-            ExpenseIrregular.spent_at <= to_date,
+            sqlfunc.date(ExpenseIrregular.spent_at) >= from_date,
+            sqlfunc.date(ExpenseIrregular.spent_at) <= to_date,
         )
     )
     return list(result.scalars().all())

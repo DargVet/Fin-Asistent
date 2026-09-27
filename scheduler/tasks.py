@@ -6,27 +6,53 @@ from db.repos import balance_repo, expense_repo, income_repo
 scheduler = AsyncIOScheduler()
 
 
-async def _notify_upcoming_charges():
+async def _apply_regular_transactions():
     """
-    Запускается ежедневно. Находит пользователей, у которых сегодня
-    списывается регулярный расход (charge_day == today), и может
-    отправить уведомление через бота (подключить позже).
+    Запускается ежедневно. Начисляет регулярные доходы и списывает регулярные расходы
+    в нужные дни месяца.
     """
     from datetime import date
     today = date.today()
 
     async with AsyncSessionFactory() as session:
-        # TODO: подключить отправку уведомлений через бота
-        pass
+        # Доходы
+        result = await session.execute(
+            __import__("sqlalchemy", fromlist=["select"]).select(
+                __import__("db.models", fromlist=["IncomeRegular"]).IncomeRegular
+            ).where(
+                __import__("db.models", fromlist=["IncomeRegular"]).IncomeRegular.pay_day == today.day
+            )
+        )
+        for income in result.scalars().all():
+            balance = await balance_repo.get(session, income.user_id)
+            if balance:
+                await balance_repo.upsert(session, income.user_id,
+                                         float(balance.amount) + float(income.amount))
+
+        # Расходы
+        result = await session.execute(
+            __import__("sqlalchemy", fromlist=["select"]).select(
+                __import__("db.models", fromlist=["ExpenseRegular"]).ExpenseRegular
+            ).where(
+                __import__("db.models", fromlist=["ExpenseRegular"]).ExpenseRegular.charge_day == today.day
+            )
+        )
+        for expense in result.scalars().all():
+            balance = await balance_repo.get(session, expense.user_id)
+            if balance:
+                await balance_repo.upsert(session, expense.user_id,
+                                         float(balance.amount) - float(expense.amount))
+
+        await session.commit()
 
 
 def setup_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
-        _notify_upcoming_charges,
+        _apply_regular_transactions,
         trigger="cron",
-        hour=9,
+        hour=0,
         minute=0,
-        id="daily_charge_check",
+        id="daily_transactions",
         replace_existing=True,
     )
     return scheduler

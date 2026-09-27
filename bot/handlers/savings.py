@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.keyboards.menus import (
     savings_menu_kb, goals_list_kb, confirm_delete_goal_kb, prompt_kb,
 )
-from db.repos import goal_repo, balance_repo
+from db.repos import goal_repo, balance_repo, expense_repo, income_repo
 from services import user_service
 
 router = Router()
@@ -160,9 +160,18 @@ async def process_savings_add(message: Message, state: FSMContext, session: Asyn
     new_current = float(goal.current_amount) + amount
     await goal_repo.update_current_amount(session, data["goal_id"], new_current)
 
+    # Обновляем баланс
     balance = await balance_repo.get(session, user.id)
     if balance:
         await balance_repo.upsert(session, user.id, float(balance.amount) - amount)
+
+    # Записываем в историю как расход
+    await expense_repo.add_irregular(
+        session, user.id,
+        category=f"Копилка: {goal.name}",
+        amount=amount,
+        is_mandatory=False,
+    )
 
     await session.commit()
     await state.clear()
@@ -205,10 +214,17 @@ async def cb_savings_del_ok(callback: CallbackQuery, session: AsyncSession) -> N
     goal_id = int(callback.data.split("_")[-1])
     user = await user_service.get_or_create(session, callback.from_user.id)
     goal = await goal_repo.get_by_id(session, goal_id)
-    if goal and goal.current_amount:
+    returned = float(goal.current_amount) if goal and goal.current_amount else 0.0
+    if returned > 0:
         balance = await balance_repo.get(session, user.id)
         if balance:
-            await balance_repo.upsert(session, user.id, float(balance.amount) + float(goal.current_amount))
+            await balance_repo.upsert(session, user.id, float(balance.amount) + returned)
+        # Записываем возврат в историю как доход
+        await income_repo.add_irregular(
+            session, user.id,
+            source=f"Возврат из копилки: {goal.name}",
+            amount=returned,
+        )
     await goal_repo.delete(session, goal_id)
     await session.commit()
     await callback.message.edit_text(
